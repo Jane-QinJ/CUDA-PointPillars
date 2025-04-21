@@ -22,16 +22,22 @@
 
 # export CUDA_VISIBLE_DEVICES=2
 
-export TensorRT_Lib=/lib/aarch64-linux-gnu/
-export TensorRT_Inc=/usr/include/aarch64-linux-gnu/
-export TensorRT_Bin=/usr/src/tensorrt/bin/
+# export TensorRT_Lib=/lib/aarch64-linux-gnu/
+# export TensorRT_Inc=/usr/include/aarch64-linux-gnu/
+# export TensorRT_Bin=/usr/src/tensorrt/bin
+export TensorRT_Lib=/home/firo/Downloads/TensorRT-8.6.1.6/lib
+export TensorRT_Inc=/home/firo/Downloads/TensorRT-8.6.1.6/include
+export TensorRT_Bin=/home/firo/Downloads/TensorRT-8.6.1.6/bin
+export LD_LIBRARY_PATH=$TensorRT_Lib:$LD_LIBRARY_PATH
 
-export CUDA_Lib=/usr/local/cuda-11.4/targets/aarch64-linux/lib/
-export CUDA_Inc=/usr/local/cuda-11.4/targets/aarch64-linux/include/
-export CUDA_Bin=/usr/local/cuda-11.4/bin/
-export CUDA_HOME=/usr/local/cuda-11.4/
+export CUDA_Lib=/usr/local/cuda/targets/x86_64-linux/lib/
+export CUDA_Inc=/usr/local/cuda/targets/x86_64-linux/include/
+export CUDA_Bin=/usr/local/cuda/bin/
+export CUDA_HOME=/usr/local/cuda/
 
-export CUDNN_Lib=/lib/aarch64-linux-gnu/
+# export CUDNN_Lib=/lib/aarch64-linux-gnu/
+export CUDNN_Lib=/usr/local/cuda/lib64
+export CUDNN_INCLUDE_DIR=/usr/local/cuda/include
 
 # fp16/int8
 export DEBUG_PRECISION=fp16

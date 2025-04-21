@@ -28,8 +28,13 @@ set(CMAKE_CXX_FLAGS_DEBUG   "-std=c++14 -O0 -g")
 set(CUDA_NVCC_FLAGS_RELEASE "-Werror=all-warnings -Xcompiler -std=c++14,-Wextra,-Wall,-Wno-deprecated-declarations,-O3")
 set(CUDA_NVCC_FLAGS_DEBUG   "-std=c++14 -O0 -g")
 
+# set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS} 
+#     -gencode arch=compute_$ENV{CUDASM},code=compute_$ENV{CUDASM}
+# )
+
+# For RTX3090
 set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS} 
-    -gencode arch=compute_$ENV{CUDASM},code=compute_$ENV{CUDASM}
+    -gencode arch=compute_86,code=sm_86
 )
 
 include_directories(

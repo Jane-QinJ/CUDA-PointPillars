@@ -4,8 +4,13 @@ ARG DEBIAN_FRONTEND=noninteractive
 ENV TZ=Etc/UTC
 
 RUN apt-get update && apt install -y tzdata
-RUN apt-get install -y python3.8 python3-pip git libgl1-mesa-glx libglib2.0-0
+RUN apt-get install -y python3.8 python3-pip git libgl1-mesa-glx libglib2.0-0 
+RUN apt-get update && \
+    apt-get install -y build-essential cmake wget
 
 RUN pip install torch==1.10.0+cu113 torchvision==0.11.1+cu113 torchaudio==0.10.0+cu113 -f https://download.pytorch.org/whl/cu113/torch_stable.html
-RUN pip install pyyaml scikit-image onnx onnx-simplifier spconv==2.3.6 pillow==10.0.0 numba==0.58.0 opencv-python
+RUN pip install pyyaml scikit-image onnx==1.15.0 \
+onnx-simplifier==0.4.35 \ spconv==2.3.6 pillow==10.0.0 numba==0.58.0 opencv-python
 RUN pip install onnx_graphsurgeon --index-url https://pypi.ngc.nvidia.com
+
+# docker run --gpus all --rm -ti -v /home/$USER/:/home/$USER/ --net=host --ipc host cudapointpillar:latest
