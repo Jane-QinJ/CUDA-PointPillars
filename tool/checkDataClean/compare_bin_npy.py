@@ -9,8 +9,8 @@
 import numpy as np
 
 # Load binary data
-bin_path = "custom_bin/000000.bin"
-npy_path = "npy/000000.npy"
+bin_path = "data/cleanBin/000001.bin"
+npy_path = "data/npy/000001.npy"
 
 # Adjust dtype and shape to match your data format (common: float32, shape: (-1, 4))
 bin_data = np.fromfile(bin_path, dtype=np.float32)

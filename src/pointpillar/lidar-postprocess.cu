@@ -386,10 +386,24 @@ cudaError_t nms_launch(unsigned int boxes_num,
                uint64_t* mask,
                cudaStream_t stream)
 {
+
+    // if (boxes_num == 0) return cudaSuccess;
+
     int col_blocks = DIVUP(boxes_num, NMS_THREADS_PER_BLOCK);
 
     dim3 blocks(col_blocks, col_blocks);
     dim3 threads(NMS_THREADS_PER_BLOCK);
+
+    std::cout << "boxes_num: " << boxes_num << std::endl;
+    std::cout << "NMS_THREADS_PER_BLOCK: " << NMS_THREADS_PER_BLOCK << std::endl;
+    std::cout << "col_blocks: " << col_blocks << std::endl;
+    
+    cudaDeviceProp prop;
+    cudaGetDeviceProperties(&prop, 0);
+    std::cout << "Max grid size: "
+          << prop.maxGridSize[0] << ", "
+          << prop.maxGridSize[1] << ", "
+          << prop.maxGridSize[2] << std::endl;
 
     nms_cuda<<<blocks, threads, 0, stream>>>(boxes_num, nms_thresh, boxes, mask);
 
