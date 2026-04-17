@@ -13,6 +13,7 @@
 #include <ros/ros.h>
 #include <sensor_msgs/PointCloud2.h>
 #include <sensor_msgs/point_cloud2_iterator.h>
+#include <std_msgs/Float32.h>
 #include <visualization_msgs/MarkerArray.h>
 
 #include "common/check.hpp"
@@ -95,8 +96,10 @@ class PointPillarRosNode {
     pnh_.param<std::string>("model_file", model_file_, default_model);
     pnh_.param<std::string>("points_topic", points_topic_, "/points_raw");
     pnh_.param<std::string>("marker_topic", marker_topic_, "/pointpillar/markers");
+    pnh_.param<std::string>("latency_topic", latency_topic_, "/pointpillar/inference_latency_ms");
     pnh_.param<bool>("enable_timer", enable_timer_, false);
     pnh_.param<int>("queue_size", queue_size_, 1);
+    pnh_.param<double>("fps_log_interval", fps_log_interval_sec_, 5.0);
 
     auto vp = makeVoxelizationParam();
     pointpillar::lidar::CoreParameter param;
@@ -115,13 +118,16 @@ class PointPillarRosNode {
 
     marker_pub_ =
         nh_.advertise<visualization_msgs::MarkerArray>(marker_topic_, 1);
+    latency_pub_ = nh_.advertise<std_msgs::Float32>(latency_topic_, 10);
     points_sub_ = nh_.subscribe(points_topic_, queue_size_,
                                 &PointPillarRosNode::pointsCallback, this);
 
+    stats_window_start_ = ros::Time::now();
     ROS_INFO_STREAM("PointPillars ROS node ready."
                     << " model_file=" << model_file_
                     << " points_topic=" << points_topic_
-                    << " marker_topic=" << marker_topic_);
+                    << " marker_topic=" << marker_topic_
+                    << " latency_topic=" << latency_topic_);
   }
 
   ~PointPillarRosNode() {
@@ -134,6 +140,7 @@ class PointPillarRosNode {
  private:
   void pointsCallback(const sensor_msgs::PointCloud2ConstPtr& msg) {
     std::lock_guard<std::mutex> lock(mutex_);
+    const ros::WallTime inference_start = ros::WallTime::now();
 
     if (!hasField(*msg, "x") || !hasField(*msg, "y") || !hasField(*msg, "z")) {
       ROS_WARN_THROTTLE(5.0, "PointCloud2 is missing x/y/z fields.");
@@ -181,7 +188,54 @@ class PointPillarRosNode {
     }
 
     auto boxes = core_->forward(points.data(), static_cast<int>(points.size() / 4), stream_);
+    const double latency_ms =
+        (ros::WallTime::now() - inference_start).toSec() * 1000.0;
+    publishLatency(latency_ms);
+    updateStats(latency_ms, boxes.size(), msg->header.frame_id);
     publishBoxes(boxes, msg->header);
+  }
+
+  void publishLatency(double latency_ms) {
+    std_msgs::Float32 latency_msg;
+    latency_msg.data = static_cast<float>(latency_ms);
+    latency_pub_.publish(latency_msg);
+  }
+
+  void updateStats(double latency_ms, size_t box_count,
+                   const std::string& frame_id) {
+    total_frames_++;
+    window_frames_++;
+    total_latency_ms_ += latency_ms;
+    window_latency_ms_ += latency_ms;
+
+    const ros::Time now = ros::Time::now();
+    if (stats_window_start_.isZero()) {
+      stats_window_start_ = now;
+      return;
+    }
+
+    const double window_sec = (now - stats_window_start_).toSec();
+    if (window_sec < fps_log_interval_sec_) {
+      return;
+    }
+
+    const double fps = window_sec > 0.0
+                           ? static_cast<double>(window_frames_) / window_sec
+                           : 0.0;
+    const double avg_latency_ms =
+        window_frames_ > 0 ? window_latency_ms_ / window_frames_ : 0.0;
+    const double avg_total_latency_ms =
+        total_frames_ > 0 ? total_latency_ms_ / total_frames_ : 0.0;
+
+    ROS_INFO_STREAM("PointPillars stats: fps=" << fps
+                    << " avg_latency_ms=" << avg_latency_ms
+                    << " total_avg_latency_ms=" << avg_total_latency_ms
+                    << " last_boxes=" << box_count
+                    << " frame_id=" << frame_id);
+
+    stats_window_start_ = now;
+    window_frames_ = 0;
+    window_latency_ms_ = 0.0;
   }
 
   void publishDeleteAll(const std_msgs::Header& header) {
@@ -230,6 +284,7 @@ class PointPillarRosNode {
   ros::NodeHandle pnh_;
   ros::Subscriber points_sub_;
   ros::Publisher marker_pub_;
+  ros::Publisher latency_pub_;
 
   std::shared_ptr<pointpillar::lidar::Core> core_;
   cudaStream_t stream_ = nullptr;
@@ -238,8 +293,15 @@ class PointPillarRosNode {
   std::string model_file_;
   std::string points_topic_;
   std::string marker_topic_;
+  std::string latency_topic_;
   bool enable_timer_ = false;
   int queue_size_ = 1;
+  double fps_log_interval_sec_ = 5.0;
+  ros::Time stats_window_start_;
+  uint64_t total_frames_ = 0;
+  uint64_t window_frames_ = 0;
+  double total_latency_ms_ = 0.0;
+  double window_latency_ms_ = 0.0;
 };
 
 }  // namespace

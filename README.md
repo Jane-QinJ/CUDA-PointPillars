@@ -72,6 +72,56 @@ Average perf in FP16 on the training set(7481 instances) of KITTI dataset.
 | OpenPCDet         | 77.28   | 52.29          | 62.68        |
 ```
 
+## ROS Real-Time Benchmark on Jetson Orin
+
+Measured on a Jetson Orin using the ROS 1 wrapper in this repository, with
+KITTI-format point clouds published as `sensor_msgs/PointCloud2` to the
+`/kitti/velo/pointcloud` topic and PointPillars detections published on
+`/pointpillar/markers`.
+
+### Summary
+
+| Test | Result |
+| ---- | ------ |
+| Standalone warmed-up throughput | about 48 FPS |
+| ROS callback latency | about 19.5 to 23.0 ms |
+| Sustained real-time ROS input rate | about 49 Hz |
+| Saturation starts | about 50 Hz |
+
+### Interpretation
+
+- The ROS node keeps up in real time through about 49 Hz on Jetson Orin.
+- At 50 Hz input and above, output rate begins to lag behind input rate.
+- Near the real-time limit, `tegrastats` showed `GR3D_FREQ` around 93% to 99%.
+
+### Reproduce
+
+Build and launch the ROS node:
+
+```shell
+source /opt/ros/noetic/setup.bash
+cd ~/catkin_ws
+catkin_make --pkg pointpillar
+source devel/setup.bash
+roslaunch pointpillar pointpillar_ros.launch fixed_frame:=velo_link
+```
+
+Run a live ROS benchmark with `tegrastats` and `rostopic hz`:
+
+```shell
+bash tool/benchmark_ros_runtime.sh
+```
+
+Sweep controlled input rates using the included KITTI `.bin` files:
+
+```shell
+bash tool/sweep_realtime_rate.sh
+```
+
+The sweep uses [tool/publish_kitti_pointcloud.py](tool/publish_kitti_pointcloud.py)
+to publish KITTI point clouds at controlled rates and records the results under
+`/tmp/pointpillar_rate_sweep*`.
+
 ## Note
 
 - Voxelization has random output since GPU processes all points simultaneously while points selection for a voxel is random.

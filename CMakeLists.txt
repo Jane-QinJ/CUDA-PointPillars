@@ -52,7 +52,7 @@ if(NOT CUDA_SM)
 endif()
 
 find_package(CUDA REQUIRED)
-find_package(catkin QUIET COMPONENTS roscpp roslib sensor_msgs visualization_msgs)
+find_package(catkin QUIET COMPONENTS roscpp roslib sensor_msgs std_msgs visualization_msgs)
 
 set(CMAKE_CXX_FLAGS_RELEASE "-std=c++14 -Wextra -Wall -Wno-missing-field-initializers -Wno-deprecated-declarations -O3")
 set(CMAKE_CXX_FLAGS_DEBUG   "-std=c++14 -O0 -g")
@@ -75,7 +75,7 @@ if(catkin_FOUND)
     catkin_package(
         INCLUDE_DIRS src src/pointpillar
         LIBRARIES pointpillar_core
-        CATKIN_DEPENDS roscpp roslib sensor_msgs visualization_msgs
+        CATKIN_DEPENDS roscpp roslib sensor_msgs std_msgs visualization_msgs
     )
 
     include_directories(
