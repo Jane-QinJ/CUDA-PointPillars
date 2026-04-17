@@ -133,9 +133,10 @@ void SaveBoxPred(std::vector<pointpillar::lidar::BoundingBox> boxes, std::string
 
 std::shared_ptr<pointpillar::lidar::Core> create_core() {
     pointpillar::lidar::VoxelizationParameter vp;
-    vp.min_range = nvtype::Float3(0.0, -39.68f, -3.0);
-    vp.max_range = nvtype::Float3(69.12f, 39.68f, 1.0);
-    vp.voxel_size = nvtype::Float3(0.16f, 0.16f, 4.0f);
+    // Keep runtime voxelization/postprocess aligned with cfgs/custom_models/pointpillar.yaml.
+    vp.min_range = nvtype::Float3(-10.0f, -20.0f, -1.0f);
+    vp.max_range = nvtype::Float3(30.0f, 20.0f, 3.0f);
+    vp.voxel_size = nvtype::Float3(0.05f, 0.05f, 4.0f);
     vp.grid_size =
         vp.compute_grid_size(vp.max_range, vp.min_range, vp.voxel_size);
     vp.max_voxels = 40000;
@@ -147,10 +148,19 @@ std::shared_ptr<pointpillar::lidar::Core> create_core() {
     pp.min_range = vp.min_range;
     pp.max_range = vp.max_range;
     pp.feature_size = nvtype::Int2(vp.grid_size.x/2, vp.grid_size.y/2);
+    pp.num_classes = 1;
+    pp.num_anchors = 2;
+    pp.anchors[0] = 0.8f;  pp.anchors[1] = 0.6f;  pp.anchors[2] = 1.73f; pp.anchors[3] = 0.0f;
+    pp.anchors[4] = 0.8f;  pp.anchors[5] = 0.6f;  pp.anchors[6] = 1.73f; pp.anchors[7] = 1.57f;
+    pp.anchor_bottom_heights = nvtype::Float3(-0.6f, 0.0f, 0.0f);
+    pp.score_thresh = 0.1f;
+    pp.nms_thresh = 0.01f;
+    pp.nms_pre_maxsize = 4096;
+    pp.nms_post_maxsize = 500;
 
     pointpillar::lidar::CoreParameter param;
     param.voxelization = vp;
-    param.lidar_model = "../model/pointpillar.plan";
+    param.lidar_model = "../model/runtime/pointpillar.plan";
     param.lidar_post = pp;
     return pointpillar::lidar::create_core(param);
 }

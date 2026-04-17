@@ -19,7 +19,7 @@ import numpy as np
 import onnx_graphsurgeon as gs
 
 @gs.Graph.register()
-def replace_with_clip(self, inputs, outputs):
+def replace_with_clip(self, inputs, outputs, dense_shape):
     for inp in inputs:
         inp.outputs.clear()
 
@@ -27,7 +27,7 @@ def replace_with_clip(self, inputs, outputs):
         out.inputs.clear()
 
     op_attrs = dict()
-    op_attrs["dense_shape"] = np.array([496,432])
+    op_attrs["dense_shape"] = np.array(dense_shape, dtype=np.int32)
 
     return self.layer(name="PPScatter_0", op="PPScatterPlugin", inputs=inputs, outputs=outputs, attrs=op_attrs)
 
@@ -37,13 +37,26 @@ def loop_node(graph, current_node, loop_time=0):
     current_node = next_node
   return next_node
 
-def simplify_postprocess(onnx_model):
+def simplify_postprocess(onnx_model, feature_map_size, num_anchors, num_classes, num_box_values=7, num_dir_bins=2):
   print("Use onnx_graphsurgeon to adjust postprocessing part in the onnx...")
   graph = gs.import_onnx(onnx_model)
 
-  cls_preds = gs.Variable(name="cls_preds", dtype=np.float32, shape=(1, 248, 216, 18))
-  box_preds = gs.Variable(name="box_preds", dtype=np.float32, shape=(1, 248, 216, 42))
-  dir_cls_preds = gs.Variable(name="dir_cls_preds", dtype=np.float32, shape=(1, 248, 216, 12))
+  feature_y, feature_x = feature_map_size
+  cls_preds = gs.Variable(
+      name="cls_preds",
+      dtype=np.float32,
+      shape=(1, feature_y, feature_x, num_anchors * num_classes),
+  )
+  box_preds = gs.Variable(
+      name="box_preds",
+      dtype=np.float32,
+      shape=(1, feature_y, feature_x, num_anchors * num_box_values),
+  )
+  dir_cls_preds = gs.Variable(
+      name="dir_cls_preds",
+      dtype=np.float32,
+      shape=(1, feature_y, feature_x, num_anchors * num_dir_bins),
+  )
 
   tmap = graph.tensors()
   new_inputs = [tmap["voxels"], tmap["voxel_idxs"], tmap["voxel_num"]]
@@ -74,7 +87,7 @@ def simplify_postprocess(onnx_model):
   return gs.export_onnx(graph)
 
 
-def simplify_preprocess(onnx_model):
+def simplify_preprocess(onnx_model, dense_shape):
   print("Use onnx_graphsurgeon to adjust preprocessing part in the onnx...")
   graph = gs.import_onnx(onnx_model)
 
@@ -132,7 +145,7 @@ def simplify_preprocess(onnx_model):
   reducemax_op.attrs['keepdims'] = [0]
 
   conv_op = [node for node in graph.nodes if node.op == "Conv"][0]
-  graph.replace_with_clip([reducemax_op.outputs[0], X, Y], [conv_op.inputs[0]])
+  graph.replace_with_clip([reducemax_op.outputs[0], X, Y], [conv_op.inputs[0]], dense_shape)
 
   graph.inputs = [input_new, X, Y]
   graph.outputs = [tmap["cls_preds"], tmap["box_preds"], tmap["dir_cls_preds"]]

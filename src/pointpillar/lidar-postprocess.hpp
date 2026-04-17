@@ -66,6 +66,8 @@ struct PostProcessParameter {
     float score_thresh = 0.1;
     float dir_offset = 0.78539;
     float nms_thresh = 0.01;
+    int nms_pre_maxsize = 4096;
+    int nms_post_maxsize = 500;
 };
 
 class PostProcess {

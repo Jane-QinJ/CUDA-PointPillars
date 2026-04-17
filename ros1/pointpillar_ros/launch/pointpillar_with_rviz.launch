@@ -1,0 +1,18 @@
+<launch>
+  <!-- Main detector config, including engine path and model-aligned geometry params. -->
+  <arg name="config_file" default="$(find pointpillar_ros)/config/pointpillar_custom.yaml"/>
+  <!-- RViz preset showing filtered point cloud + detection markers. -->
+  <arg name="rviz_config" default="$(find pointpillar_ros)/config/pointpillar.rviz"/>
+  <!-- Override raw point cloud topic at launch time if needed. -->
+  <arg name="pointcloud_topic" default="/velodyne_points"/>
+  <!-- Override marker output topic at launch time if needed. -->
+  <arg name="marker_topic" default="/pointpillar/detections"/>
+
+  <node pkg="pointpillar_ros" type="pointpillar_ros_node" name="pointpillar_ros" output="screen">
+    <rosparam command="load" file="$(arg config_file)"/>
+    <param name="pointcloud_topic" value="$(arg pointcloud_topic)"/>
+    <param name="marker_topic" value="$(arg marker_topic)"/>
+  </node>
+
+  <node pkg="rviz" type="rviz" name="pointpillar_rviz" args="-d $(arg rviz_config)" output="screen"/>
+</launch>

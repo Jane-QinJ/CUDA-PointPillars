@@ -50,6 +50,122 @@ cd ../ && sh tool/build_trt_engine.sh
 cd build && ./pointpillar ../data/ ../data/ --timer
 ```
 
+## Custom Dataset Workflow
+
+This repo now includes a custom PointPillars pipeline for:
+
+- training/export config: [cfgs/custom_models/pointpillar.yaml](/home/firo/workspace/CUDA-PointPillars/cfgs/custom_models/pointpillar.yaml)
+- custom dataset config: [cfgs/dataset_configs/custom_dataset.yaml](/home/firo/workspace/CUDA-PointPillars/cfgs/dataset_configs/custom_dataset.yaml)
+- ONNX export output: `model/runtime_onnx/pointpillar.onnx`
+- TensorRT engine output: `model/runtime/pointpillar.plan`
+
+### 1. Export ONNX
+
+OpenPCDet export was validated inside the Docker image:
+
+```bash
+docker build -f docker/Dockerfile . -t cudapointpillar:latest
+
+docker run --gpus all --rm -ti \
+  --net=host --ipc=host \
+  -v /home/$USER/workspace/CUDA-PointPillars:/workspace/CUDA-PointPillars \
+  cudapointpillar:latest
+```
+
+Inside the container:
+
+```bash
+cd /workspace/CUDA-PointPillars/OpenPCDet
+python3 -m pip install -r requirements.txt
+python3 setup.py develop
+
+cd /workspace/CUDA-PointPillars
+export PYTHONPATH=/workspace/CUDA-PointPillars/OpenPCDet:$PYTHONPATH
+
+python3 tool/export_onnx.py \
+  --cfg_file cfgs/custom_models/pointpillar.yaml \
+  --ckpt ckpts/checkpoint_epoch_133.pth \
+  --out_dir model/runtime_onnx \
+  --data_path data
+```
+
+### 2. Build TensorRT Engine
+
+TensorRT engine generation is done on the host with the local TensorRT tar package under `third_party/TensorRT-8.6.1.6`:
+
+```bash
+cd /home/$USER/workspace/CUDA-PointPillars
+
+unset TensorRT_Inc TensorRT_Lib TensorRT_Bin
+export TensorRT_Inc=$PWD/third_party/TensorRT-8.6.1.6/include
+export TensorRT_Lib=$PWD/third_party/TensorRT-8.6.1.6/lib
+export TensorRT_Bin=$PWD/third_party/TensorRT-8.6.1.6/bin
+
+. tool/environment.sh
+
+bash tool/build_trt_engine.sh \
+  ./model/runtime_onnx/pointpillar.onnx \
+  ./model/runtime/pointpillar.plan
+```
+
+### 3. Offline Runtime
+
+The native runtime is aligned with the custom config and loads:
+
+- engine: `model/runtime/pointpillar.plan`
+- point cloud range: `[-10, -20, -1, 30, 20, 3]`
+- voxel size: `[0.05, 0.05, 4]`
+- class: `Pedestrian`
+
+Build and run:
+
+```bash
+cd /home/$USER/workspace/CUDA-PointPillars
+. tool/environment.sh
+mkdir -p build
+cd build
+cmake ..
+make -j$(nproc)
+./pointpillar ../data/ ../data/ --timer
+```
+
+## ROS1 Runtime
+
+A ROS1 wrapper package is included in [ros1/pointpillar_ros](/home/firo/workspace/CUDA-PointPillars/ros1/pointpillar_ros).
+
+Features:
+
+- subscribes to `/velodyne_points`
+- filters points by `point_cloud_range`
+- publishes filtered cloud on `/pointpillar/filtered_points`
+- publishes detection markers on `/pointpillar/detections`
+- shows `class_name + euclidean_distance` above each box
+- supports configurable `min_confidence` and `nms_thresh`
+
+### Build
+
+```bash
+mkdir -p ~/catkin_ws/src
+ln -sfn /home/$USER/workspace/CUDA-PointPillars/ros1/pointpillar_ros ~/catkin_ws/src/pointpillar_ros
+
+cd ~/catkin_ws
+catkin_make -DPYTHON_EXECUTABLE=/usr/bin/python3
+```
+
+### Launch
+
+```bash
+cd /home/$USER/workspace/CUDA-PointPillars
+. tool/environment.sh
+source ~/catkin_ws/devel/setup.bash
+roslaunch pointpillar_ros pointpillar_with_rviz.launch
+```
+
+Main ROS config:
+
+- [ros1/pointpillar_ros/config/pointpillar_custom.yaml](/home/firo/workspace/CUDA-PointPillars/ros1/pointpillar_ros/config/pointpillar_custom.yaml)
+- [ros1/pointpillar_ros/config/pointpillar.rviz](/home/firo/workspace/CUDA-PointPillars/ros1/pointpillar_ros/config/pointpillar.rviz)
+
 ## FP16 Performance && Metrics
 
 Average perf in FP16 on the training set(7481 instances) of KITTI dataset.

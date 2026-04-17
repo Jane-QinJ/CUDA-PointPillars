@@ -1,0 +1,7 @@
+<launch>
+  <arg name="config_file" default="$(find pointpillar_ros)/config/pointpillar_custom.yaml"/>
+
+  <node pkg="pointpillar_ros" type="pointpillar_ros_node" name="pointpillar_ros" output="screen">
+    <rosparam command="load" file="$(arg config_file)"/>
+  </node>
+</launch>

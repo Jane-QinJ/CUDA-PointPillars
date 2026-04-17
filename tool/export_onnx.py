@@ -29,6 +29,17 @@ from pcdet.config import cfg, cfg_from_yaml_file
 
 from modify_onnx import simplify_preprocess, simplify_postprocess
 
+
+def get_voxel_generator_cfg(data_processor_cfg):
+    for processor in data_processor_cfg:
+        if processor.NAME == 'transform_points_to_voxels':
+            return processor
+    raise ValueError('transform_points_to_voxels config not found')
+
+
+def get_anchor_cfg(model_cfg):
+    return model_cfg.DENSE_HEAD.ANCHOR_GENERATOR_CONFIG
+
 class DemoDataset(DatasetTemplate):
     def __init__(self, dataset_cfg, class_names, training=True, root_path=None, logger=None, ext='.bin'):
         """
@@ -100,17 +111,27 @@ def main():
 
     np.set_printoptions(threshold=np.inf)
 
+    voxel_cfg = get_voxel_generator_cfg(cfg.DATA_CONFIG.DATA_PROCESSOR)
+    point_cloud_range = cfg.DATA_CONFIG.POINT_CLOUD_RANGE
+    voxel_size = voxel_cfg.VOXEL_SIZE
+    grid_x = round((point_cloud_range[3] - point_cloud_range[0]) / voxel_size[0])
+    grid_y = round((point_cloud_range[4] - point_cloud_range[1]) / voxel_size[1])
+    feature_map_size = (grid_y // 2, grid_x // 2)
+    dense_shape = (grid_y, grid_x)
+    anchor_cfg = get_anchor_cfg(cfg.MODEL)
+    num_classes = len(cfg.CLASS_NAMES)
+    num_anchors = sum(len(anchor.anchor_rotations) * len(anchor.anchor_sizes) for anchor in anchor_cfg)
+    max_voxels = voxel_cfg.MAX_NUMBER_OF_VOXELS['test']
+
     with torch.no_grad():
 
-      MAX_VOXELS = 10000
-
       dummy_voxels = torch.zeros(
-          (MAX_VOXELS, 32, 4),
+          (max_voxels, voxel_cfg.MAX_POINTS_PER_VOXEL, 4),
           dtype=torch.float32,
           device='cuda:0')
 
       dummy_voxel_idxs = torch.zeros(
-          (MAX_VOXELS, 4),
+          (max_voxels, 4),
           dtype=torch.int32,
           device='cuda:0')
 
@@ -137,12 +158,17 @@ def main():
           )
 
     onnx_raw = onnx.load(os.path.join(args.out_dir, "pointpillar_raw.onnx"))  # load onnx model
-    onnx_trim_post = simplify_postprocess(onnx_raw)
+    onnx_trim_post = simplify_postprocess(
+        onnx_raw,
+        feature_map_size=feature_map_size,
+        num_anchors=num_anchors,
+        num_classes=num_classes,
+    )
 
     onnx_simp, check = simplify(onnx_trim_post)
     assert check, "Simplified ONNX model could not be validated"
 
-    onnx_final = simplify_preprocess(onnx_simp)
+    onnx_final = simplify_preprocess(onnx_simp, dense_shape=dense_shape)
     onnx.save(onnx_final, os.path.join(args.out_dir, "pointpillar.onnx"))
 
     logger.info('[PASS] ONNX EXPORTED.')

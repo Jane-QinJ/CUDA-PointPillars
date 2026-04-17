@@ -386,6 +386,10 @@ cudaError_t nms_launch(unsigned int boxes_num,
                uint64_t* mask,
                cudaStream_t stream)
 {
+    if (boxes_num == 0) {
+        return cudaSuccess;
+    }
+
     int col_blocks = DIVUP(boxes_num, NMS_THREADS_PER_BLOCK);
 
     dim3 blocks(col_blocks, col_blocks);
@@ -465,8 +469,14 @@ public:
         checkRuntime(cudaMemcpyAsync(&bndbox_num_, object_counter_, sizeof(int), cudaMemcpyDeviceToHost, _stream));
         checkRuntime(cudaStreamSynchronize(_stream));
 
+        if (bndbox_num_ == 0) {
+            bndbox_num_after_nms_ = 0;
+            return;
+        }
+
         thrust::device_ptr<combined_float> thr_bndbox_((combined_float *)bndbox_);
         thrust::stable_sort_by_key(thrust::cuda::par.on(_stream), score_, score_ + bndbox_num_, thr_bndbox_, thrust::greater<float>());
+        bndbox_num_ = std::min(bndbox_num_, static_cast<unsigned int>(param_.nms_pre_maxsize));
         checkRuntime(nms_launch(bndbox_num_, bndbox_, param_.nms_thresh, h_mask_, _stream));
 
         checkRuntime(cudaMemcpyAsync(h_bndbox_, bndbox_, bndbox_num_ * 9 * sizeof(float), cudaMemcpyDeviceToHost, _stream));
@@ -483,6 +493,9 @@ public:
             if (!(remv_[nblock] & (1ULL << inblock))) {
                 bndbox_after_nms_[bndbox_num_after_nms_] = *(BoundingBox*)(&h_bndbox_[i_nms * 9]);
                 bndbox_num_after_nms_++;
+                if (bndbox_num_after_nms_ >= static_cast<unsigned int>(param_.nms_post_maxsize)) {
+                    break;
+                }
                 uint64_t* p = h_mask_ + i_nms * col_blocks;
                 for (int j_nms = nblock; j_nms < col_blocks; j_nms++) {
                     remv_[j_nms] |= p[j_nms];

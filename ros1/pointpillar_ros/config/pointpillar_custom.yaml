@@ -1,0 +1,44 @@
+# TensorRT engine generated from model/runtime_onnx/pointpillar.onnx.
+engine_path: "/home/firo/workspace/CUDA-PointPillars/model/runtime/pointpillar.plan"
+
+# Raw lidar input topic used for detection.
+pointcloud_topic: "/velodyne_points"
+# MarkerArray output topic for detected boxes and text labels.
+marker_topic: "/pointpillar/detections"
+# Optional filtered point cloud topic. Only points inside point_cloud_range are republished.
+filtered_pointcloud_topic: "/pointpillar/filtered_points"
+# Leave empty to reuse the incoming point cloud frame_id.
+marker_frame_id: ""
+use_input_frame: true
+# Publish filtered point cloud for RViz so points outside the detection range are hidden.
+publish_filtered_pointcloud: true
+# Marker persistence time in seconds.
+marker_lifetime: 0.1
+# RViz marker line/text scaling helper.
+line_width: 0.08
+# Additional display-side confidence filter. Boxes below this score are hidden in RViz.
+min_confidence: 0.7
+# Display names for class ids. Index 0 -> Pedestrian.
+class_names: ["Pedestrian"]
+
+# Detection range used both by runtime voxelization and by filtered point cloud output.
+point_cloud_range: [-10.0, -20.0, -1.0, 30.0, 20.0, 3.0]
+# Must match the training/export config exactly.
+voxel_size: [0.05, 0.05, 4.0]
+max_voxels: 40000
+max_points_per_voxel: 32
+max_points: 300000
+num_feature: 4
+
+# Head/postprocess parameters must stay aligned with the exported model.
+num_classes: 1
+num_anchors: 2
+anchors: [0.8, 0.6, 1.73, 0.0, 0.8, 0.6, 1.73, 1.57]
+anchor_bottom_heights: [-0.6, 0.0, 0.0]
+# Runtime score threshold before NMS.
+score_thresh: 0.1
+# NMS IoU threshold. Higher values keep more overlapping boxes.
+nms_thresh: 0.7
+dir_offset: 0.78539
+# Enable timing print in the TensorRT/CUDA pipeline.
+enable_timer: false
