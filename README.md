@@ -129,6 +129,23 @@ make -j$(nproc)
 ./pointpillar ../data/ ../data/ --timer
 ```
 
+### Performance Notes
+
+Current custom-model measurements on the laptop branch:
+
+- offline end-to-end runtime: about `31~33 ms / frame`
+- offline end-to-end throughput: about `30~32 FPS`
+- TensorRT engine-only runtime (`trtexec` total): about `9.25 ms / frame`
+- TensorRT engine-only throughput: about `108 FPS`
+
+Observed offline breakdown:
+
+- voxelization: about `0.05 ms`
+- backbone + head: about `8~10 ms`
+- decoder + NMS: about `22~24 ms`
+
+The current bottleneck is the CUDA decoder + NMS stage rather than the TensorRT backbone.
+
 ## ROS1 Runtime
 
 A ROS1 wrapper package is included in [ros1/pointpillar_ros](/home/firo/workspace/CUDA-PointPillars/ros1/pointpillar_ros).
@@ -141,6 +158,7 @@ Features:
 - publishes detection markers on `/pointpillar/detections`
 - shows `class_name + euclidean_distance` above each box
 - supports configurable `min_confidence` and `nms_thresh`
+- can print moving-average runtime FPS in ROS log
 
 ### Build
 

@@ -3,6 +3,7 @@
 #include <cmath>
 #include <iomanip>
 #include <memory>
+#include <numeric>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -126,6 +127,8 @@ class PointPillarsRosNode {
         line_width_ = pnh_.param("line_width", 0.08);
         min_confidence_ = pnh_.param("min_confidence", 0.5);
         enable_timer_ = pnh_.param("enable_timer", false);
+        print_fps_ = pnh_.param("print_fps", true);
+        fps_window_size_ = pnh_.param("fps_window_size", 30);
         publish_filtered_pointcloud_ = pnh_.param("publish_filtered_pointcloud", true);
         filtered_pointcloud_topic_ = pnh_.param<std::string>("filtered_pointcloud_topic", "/pointpillar/filtered_points");
         class_names_ = loadStringArray(pnh_, "class_names");
@@ -271,10 +274,32 @@ class PointPillarsRosNode {
             return;
         }
 
+        const ros::WallTime start_time = ros::WallTime::now();
         publishFilteredCloud(msg->header, points, has_intensity);
         // Run TensorRT inference on points already cropped by point_cloud_range.
         auto boxes = core_->forward(points.data(), static_cast<int>(points.size() / 4), stream_);
+        updateFps((ros::WallTime::now() - start_time).toSec());
         marker_pub_.publish(buildMarkers(msg->header, boxes));
+    }
+
+    void updateFps(double frame_seconds) {
+        if (!print_fps_ || frame_seconds <= 0.0) {
+            return;
+        }
+
+        fps_window_.push_back(frame_seconds);
+        if (fps_window_.size() > fps_window_size_) {
+            fps_window_.erase(fps_window_.begin());
+        }
+
+        const double total = std::accumulate(fps_window_.begin(), fps_window_.end(), 0.0);
+        if (total <= 0.0) {
+            return;
+        }
+
+        const double avg_frame_ms = (total / static_cast<double>(fps_window_.size())) * 1000.0;
+        const double avg_fps = static_cast<double>(fps_window_.size()) / total;
+        ROS_INFO_THROTTLE(1.0, "PointPillars avg %.2f FPS (%.2f ms, window=%zu)", avg_fps, avg_frame_ms, fps_window_.size());
     }
 
     std::string classNameForId(int class_id) const {
@@ -375,10 +400,13 @@ class PointPillarsRosNode {
     std::vector<std::string> class_names_;
     bool use_input_frame_ = true;
     bool enable_timer_ = false;
+    bool print_fps_ = true;
     bool publish_filtered_pointcloud_ = true;
+    int fps_window_size_ = 30;
     double marker_lifetime_sec_ = 0.1;
     double line_width_ = 0.08;
     double min_confidence_ = 0.5;
+    std::vector<double> fps_window_;
 };
 
 }  // namespace

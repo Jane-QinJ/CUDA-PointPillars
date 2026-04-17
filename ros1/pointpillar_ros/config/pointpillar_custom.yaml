@@ -42,3 +42,7 @@ nms_thresh: 0.7
 dir_offset: 0.78539
 # Enable timing print in the TensorRT/CUDA pipeline.
 enable_timer: false
+# Print moving-average FPS in ROS log.
+print_fps: true
+# Number of recent frames used for the average FPS estimate.
+fps_window_size: 30
