@@ -1,0 +1,26 @@
+<launch>
+  <arg name="points_topic" default="/kitti/velo/pointcloud" />
+  <arg name="marker_topic" default="/pointpillar/markers" />
+  <arg name="model_file" default="$(find pointpillar)/model/pointpillar.plan" />
+  <arg name="enable_timer" default="false" />
+  <arg name="fixed_frame" default="velodyne" />
+  <arg name="open_rviz" default="true" />
+  <arg name="rviz_config" default="$(find pointpillar)/rviz/pointpillar.rviz" />
+
+  <node pkg="pointpillar"
+        type="pointpillar_ros_node"
+        name="pointpillar_ros_node"
+        output="screen">
+    <param name="model_file" value="$(arg model_file)" />
+    <param name="points_topic" value="$(arg points_topic)" />
+    <param name="marker_topic" value="$(arg marker_topic)" />
+    <param name="enable_timer" value="$(arg enable_timer)" />
+  </node>
+
+  <node if="$(arg open_rviz)"
+        pkg="rviz"
+        type="rviz"
+        name="pointpillar_rviz"
+        args="-d $(arg rviz_config) -f $(arg fixed_frame)"
+        output="screen" />
+</launch>
