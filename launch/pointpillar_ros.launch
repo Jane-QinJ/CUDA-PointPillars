@@ -2,12 +2,16 @@
   <arg name="points_topic" default="/kitti/velo/pointcloud" />
   <arg name="marker_topic" default="/pointpillar/markers" />
   <arg name="latency_topic" default="/pointpillar/inference_latency_ms" />
+  <arg name="detections_topic" default="/pointpillar/detections" />
   <arg name="model_file" default="$(find pointpillar)/model/pointpillar.plan" />
   <arg name="enable_timer" default="false" />
   <arg name="fixed_frame" default="velodyne" />
   <arg name="open_rviz" default="true" />
   <arg name="rviz_config" default="$(find pointpillar)/rviz/pointpillar.rviz" />
   <arg name="fps_log_interval" default="5.0" />
+  <!-- Override for a custom-trained model; -1 keeps the compiled-in default. -->
+  <arg name="score_thresh" default="-1.0" />
+  <arg name="nms_thresh" default="-1.0" />
 
   <node pkg="pointpillar"
         type="pointpillar_ros_node"
@@ -17,8 +21,14 @@
     <param name="points_topic" value="$(arg points_topic)" />
     <param name="marker_topic" value="$(arg marker_topic)" />
     <param name="latency_topic" value="$(arg latency_topic)" />
+    <param name="detections_topic" value="$(arg detections_topic)" />
     <param name="enable_timer" value="$(arg enable_timer)" />
     <param name="fps_log_interval" value="$(arg fps_log_interval)" />
+    <param name="score_thresh" value="$(arg score_thresh)" />
+    <param name="nms_thresh" value="$(arg nms_thresh)" />
+    <!-- Class names must match the order of class ids the model was
+         trained with (see cfgs/*/pointpillar.yaml CLASS_NAMES). -->
+    <rosparam param="class_names">["Car", "Pedestrian", "Cyclist"]</rosparam>
   </node>
 
   <node if="$(arg open_rviz)"

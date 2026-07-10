@@ -52,7 +52,7 @@ if(NOT CUDA_SM)
 endif()
 
 find_package(CUDA REQUIRED)
-find_package(catkin QUIET COMPONENTS roscpp roslib sensor_msgs std_msgs visualization_msgs)
+find_package(catkin QUIET COMPONENTS roscpp roslib sensor_msgs std_msgs visualization_msgs message_generation)
 
 set(CMAKE_CXX_FLAGS_RELEASE "-std=c++14 -Wextra -Wall -Wno-missing-field-initializers -Wno-deprecated-declarations -O3")
 set(CMAKE_CXX_FLAGS_DEBUG   "-std=c++14 -O0 -g")
@@ -72,10 +72,21 @@ include_directories(
 )
 
 if(catkin_FOUND)
+    add_message_files(
+        FILES
+        Detection3D.msg
+        Detection3DArray.msg
+    )
+
+    generate_messages(
+        DEPENDENCIES
+        std_msgs
+    )
+
     catkin_package(
         INCLUDE_DIRS src src/pointpillar
         LIBRARIES pointpillar_core
-        CATKIN_DEPENDS roscpp roslib sensor_msgs std_msgs visualization_msgs
+        CATKIN_DEPENDS roscpp roslib sensor_msgs std_msgs visualization_msgs message_runtime
     )
 
     include_directories(
@@ -121,6 +132,11 @@ if(catkin_FOUND)
     ################### pointpillar_ros_node program ###################
     add_executable(pointpillar_ros_node
         src/ros/pointpillar_ros_node.cpp
+    )
+
+    add_dependencies(pointpillar_ros_node
+        ${${PROJECT_NAME}_EXPORTED_TARGETS}
+        ${catkin_EXPORTED_TARGETS}
     )
 
     target_link_libraries(pointpillar_ros_node

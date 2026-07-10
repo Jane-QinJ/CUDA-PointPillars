@@ -465,6 +465,11 @@ public:
         checkRuntime(cudaMemcpyAsync(&bndbox_num_, object_counter_, sizeof(int), cudaMemcpyDeviceToHost, _stream));
         checkRuntime(cudaStreamSynchronize(_stream));
 
+        if (bndbox_num_ == 0) {
+            bndbox_num_after_nms_ = 0;
+            return;
+        }
+
         thrust::device_ptr<combined_float> thr_bndbox_((combined_float *)bndbox_);
         thrust::stable_sort_by_key(thrust::cuda::par.on(_stream), score_, score_ + bndbox_num_, thr_bndbox_, thrust::greater<float>());
         checkRuntime(nms_launch(bndbox_num_, bndbox_, param_.nms_thresh, h_mask_, _stream));

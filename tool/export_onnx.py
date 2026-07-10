@@ -83,10 +83,45 @@ def parse_config():
 
     return args, cfg
 
+def compute_export_shapes(cfg):
+    """Derive the BEV grid / anchor-head channel layout from a cfg so the
+    ONNX graph surgery matches models with a different point cloud range,
+    voxel size, or class/anchor count than KITTI's 3-class default.
+    """
+    pc_range = np.array(cfg.DATA_CONFIG.POINT_CLOUD_RANGE, dtype=np.float64)
+    voxel_size = np.array(
+        next(d['VOXEL_SIZE'] for d in cfg.DATA_CONFIG.DATA_PROCESSOR
+             if d['NAME'] == 'transform_points_to_voxels'),
+        dtype=np.float64)
+    grid_size = np.round((pc_range[3:6] - pc_range[0:3]) / voxel_size).astype(int)
+
+    anchor_cfgs = cfg.MODEL.DENSE_HEAD.ANCHOR_GENERATOR_CONFIG
+    feature_map_stride = anchor_cfgs[0].get('feature_map_stride', 2)
+    num_anchors = sum(len(a['anchor_rotations']) * len(a['anchor_sizes']) for a in anchor_cfgs)
+    num_classes = len(cfg.CLASS_NAMES)
+    num_dir_bins = cfg.MODEL.DENSE_HEAD.get('NUM_DIR_BINS', 2)
+
+    feature_w = int(grid_size[0] // feature_map_stride)
+    feature_h = int(grid_size[1] // feature_map_stride)
+    dense_shape = (int(grid_size[1]), int(grid_size[0]))
+
+    return {
+        'feature_h': feature_h,
+        'feature_w': feature_w,
+        'num_anchors': num_anchors,
+        'num_classes': num_classes,
+        'num_box_values': 7,
+        'num_dir_bins': num_dir_bins,
+        'dense_shape': dense_shape,
+    }
+
+
 def main():
     args, cfg = parse_config()
     logger = common_utils.create_logger()
     logger.info('------ Convert OpenPCDet model for TensorRT ------')
+    export_shapes = compute_export_shapes(cfg)
+    logger.info('Derived export shapes: %s', export_shapes)
     demo_dataset = DemoDataset(
         dataset_cfg=cfg.DATA_CONFIG, class_names=cfg.CLASS_NAMES, training=False,
         root_path=Path(args.data_path), ext='.bin', logger=logger
@@ -137,12 +172,20 @@ def main():
           )
 
     onnx_raw = onnx.load(os.path.join(args.out_dir, "pointpillar_raw.onnx"))  # load onnx model
-    onnx_trim_post = simplify_postprocess(onnx_raw)
+    onnx_trim_post = simplify_postprocess(
+        onnx_raw,
+        feature_h=export_shapes['feature_h'],
+        feature_w=export_shapes['feature_w'],
+        num_anchors=export_shapes['num_anchors'],
+        num_classes=export_shapes['num_classes'],
+        num_box_values=export_shapes['num_box_values'],
+        num_dir_bins=export_shapes['num_dir_bins'],
+    )
 
     onnx_simp, check = simplify(onnx_trim_post)
     assert check, "Simplified ONNX model could not be validated"
 
-    onnx_final = simplify_preprocess(onnx_simp)
+    onnx_final = simplify_preprocess(onnx_simp, dense_shape=export_shapes['dense_shape'])
     onnx.save(onnx_final, os.path.join(args.out_dir, "pointpillar.onnx"))
 
     logger.info('[PASS] ONNX EXPORTED.')
