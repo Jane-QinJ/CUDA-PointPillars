@@ -1,0 +1,57 @@
+<!--
+  Example launch file for the custom single-class Pedestrian model trained
+  in ckpts/pointpillar.yaml (point cloud range / voxel size / anchors below
+  are copied straight from that cfg's DATA_CONFIG and
+  MODEL.DENSE_HEAD.ANCHOR_GENERATOR_CONFIG). Requires model/pointpillar.plan
+  to have been built from that checkpoint's ONNX export
+  (see README.md "Using a Custom-Trained Model").
+-->
+<launch>
+  <arg name="points_topic" default="/points_raw" />
+  <arg name="marker_topic" default="/pointpillar/markers" />
+  <arg name="latency_topic" default="/pointpillar/inference_latency_ms" />
+  <arg name="detections_topic" default="/pointpillar/detections" />
+  <arg name="model_file" default="$(find pointpillar)/model/pointpillar.plan" />
+  <arg name="enable_timer" default="false" />
+  <arg name="fixed_frame" default="velodyne" />
+  <arg name="open_rviz" default="true" />
+  <arg name="rviz_config" default="$(find pointpillar)/rviz/pointpillar.rviz" />
+  <arg name="fps_log_interval" default="5.0" />
+
+  <node pkg="pointpillar"
+        type="pointpillar_ros_node"
+        name="pointpillar_ros_node"
+        output="screen">
+    <param name="model_file" value="$(arg model_file)" />
+    <param name="points_topic" value="$(arg points_topic)" />
+    <param name="marker_topic" value="$(arg marker_topic)" />
+    <param name="latency_topic" value="$(arg latency_topic)" />
+    <param name="detections_topic" value="$(arg detections_topic)" />
+    <param name="enable_timer" value="$(arg enable_timer)" />
+    <param name="fps_log_interval" value="$(arg fps_log_interval)" />
+
+    <!-- From ckpts/pointpillar.yaml DATA_CONFIG -->
+    <rosparam param="point_cloud_range">[-10.0, -20.0, -1.0, 30.0, 20.0, 3.0]</rosparam>
+    <rosparam param="voxel_size">[0.05, 0.05, 4.0]</rosparam>
+
+    <!-- From ckpts/pointpillar.yaml MODEL.DENSE_HEAD -->
+    <rosparam param="class_names">["Pedestrian"]</rosparam>
+    <!-- One anchor entry per (anchor_size x anchor_rotation): [w, l, h, rot] -->
+    <rosparam param="anchors">[0.8, 0.6, 1.73, 0.0, 0.8, 0.6, 1.73, 1.57]</rosparam>
+    <rosparam param="anchor_bottom_heights">[-0.6]</rosparam>
+    <param name="dir_offset" value="0.78539" />
+    <param name="score_thresh" value="0.7" />
+    <param name="nms_thresh" value="0.01" />
+  </node>
+
+  <node if="$(arg open_rviz)"
+        pkg="rviz"
+        type="rviz"
+        name="pointpillar_rviz"
+        args="-d $(arg rviz_config) -f $(arg fixed_frame)"
+        output="screen">
+    <!-- rviz_config's PointCloud2 display subscribes to /points_raw; remap
+         it so the display follows whatever points_topic is set to. -->
+    <remap from="/points_raw" to="$(arg points_topic)" />
+  </node>
+</launch>

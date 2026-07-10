@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <cstdio>
 #include <memory>
 #include <mutex>
 #include <stdexcept>
@@ -258,6 +259,7 @@ class PointPillarRosNode {
     array.markers.push_back(clear_marker);
 
     int marker_id = 0;
+    int label_id = 0;
     for (const auto& box : boxes) {
       visualization_msgs::Marker marker;
       marker.header = header;
@@ -275,6 +277,29 @@ class PointPillarRosNode {
       marker.color = classColor(box.id);
       marker.lifetime = ros::Duration(0.1);
       array.markers.push_back(marker);
+
+      const float distance = std::sqrt(box.x * box.x + box.y * box.y + box.z * box.z);
+      char label[32];
+      std::snprintf(label, sizeof(label), "%.1fm", distance);
+
+      visualization_msgs::Marker text_marker;
+      text_marker.header = header;
+      text_marker.ns = "pointpillar_distance";
+      text_marker.id = label_id++;
+      text_marker.type = visualization_msgs::Marker::TEXT_VIEW_FACING;
+      text_marker.action = visualization_msgs::Marker::ADD;
+      text_marker.pose.position.x = box.x;
+      text_marker.pose.position.y = box.y;
+      text_marker.pose.position.z = box.z + std::max(box.h, 0.01f) / 2.0f + 0.3f;
+      text_marker.pose.orientation.w = 1.0;
+      text_marker.scale.z = 0.4;
+      text_marker.color.r = 1.0f;
+      text_marker.color.g = 1.0f;
+      text_marker.color.b = 1.0f;
+      text_marker.color.a = 1.0f;
+      text_marker.text = label;
+      text_marker.lifetime = ros::Duration(0.1);
+      array.markers.push_back(text_marker);
     }
 
     marker_pub_.publish(array);
