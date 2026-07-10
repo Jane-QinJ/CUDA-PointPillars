@@ -340,6 +340,7 @@ class PointPillarRosNode {
 
     int marker_id = 0;
     int label_id = 0;
+    int arrow_id = 0;
     for (const auto& box : boxes) {
       visualization_msgs::Marker marker;
       marker.header = header;
@@ -380,6 +381,28 @@ class PointPillarRosNode {
       text_marker.text = label;
       text_marker.lifetime = ros::Duration(0.1);
       array.markers.push_back(text_marker);
+
+      visualization_msgs::Marker arrow_marker;
+      arrow_marker.header = header;
+      arrow_marker.ns = "pointpillar_direction";
+      arrow_marker.id = arrow_id++;
+      arrow_marker.type = visualization_msgs::Marker::ARROW;
+      arrow_marker.action = visualization_msgs::Marker::ADD;
+      arrow_marker.pose.position.x = box.x;
+      arrow_marker.pose.position.y = box.y;
+      arrow_marker.pose.position.z = box.z + std::max(box.h, 0.01f) / 2.0f + 0.1f;
+      arrow_marker.pose.orientation = yawToQuaternion(box.rt);
+      // Arrow points along local +X; length scales with the box so it stays
+      // visible without dwarfing small (e.g. pedestrian) detections.
+      arrow_marker.scale.x = std::max(box.l, 0.01f) * 1.5f;
+      arrow_marker.scale.y = 0.15;
+      arrow_marker.scale.z = 0.15;
+      arrow_marker.color.r = 1.0f;
+      arrow_marker.color.g = 0.65f;
+      arrow_marker.color.b = 0.0f;
+      arrow_marker.color.a = 0.9f;
+      arrow_marker.lifetime = ros::Duration(0.1);
+      array.markers.push_back(arrow_marker);
     }
 
     marker_pub_.publish(array);
