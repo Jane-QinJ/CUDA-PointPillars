@@ -4,5 +4,7 @@ ckpts
 data
 model/pointpillar_raw.onnx
 model/*.plan
+model/*.log
 workspace
 **/__pycache__
+.codex

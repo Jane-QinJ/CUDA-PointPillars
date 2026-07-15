@@ -90,7 +90,8 @@ static __global__ void generateBaseFeatures_kernel(unsigned int *mask, float *vo
         unsigned int *pillar_num,
         float *voxel_features,
         unsigned int *voxel_num,
-        unsigned int *voxel_idxs)
+        unsigned int *voxel_idxs,
+        unsigned int max_voxels)
 {
   unsigned int voxel_idx = blockIdx.x * blockDim.x + threadIdx.x;
   unsigned int voxel_idy = blockIdx.y * blockDim.y + threadIdx.y;
@@ -105,6 +106,11 @@ static __global__ void generateBaseFeatures_kernel(unsigned int *mask, float *vo
 
   unsigned int current_pillarId = 0;
   current_pillarId = atomicAdd(pillar_num, 1);
+
+  // Scene has more occupied pillars than the engine's max_voxels capacity
+  // (e.g. a dense/near-range live scan vs. the sparse KITTI training range) -
+  // drop the excess instead of writing past the fixed-size output buffers.
+  if (current_pillarId >= max_voxels) return;
 
   voxel_num[current_pillarId] = count;
 
@@ -121,6 +127,14 @@ static __global__ void generateBaseFeatures_kernel(unsigned int *mask, float *vo
   atomicExch(mask + voxel_index, 0);
 }
 
+// pillar_num is an atomic counter incremented once per occupied voxel, even
+// for voxels dropped past max_voxels above - clamp it so downstream stages
+// (feature gen, scatter) never see a count exceeding the allocated buffers.
+static __global__ void clampPillarCount_kernel(unsigned int *pillar_num, unsigned int max_voxels)
+{
+  if (*pillar_num > max_voxels) *pillar_num = max_voxels;
+}
+
 // create 4 channels
 cudaError_t generateBaseFeatures_launch(unsigned int *mask, float *voxels,
         int grid_y_size, int grid_x_size,
@@ -128,6 +142,7 @@ cudaError_t generateBaseFeatures_launch(unsigned int *mask, float *voxels,
         float *voxel_features,
         unsigned int *voxel_num,
         unsigned int *voxel_idxs,
+        unsigned int max_voxels,
         cudaStream_t stream)
 {
   dim3 threads = {32,32};
@@ -139,7 +154,9 @@ cudaError_t generateBaseFeatures_launch(unsigned int *mask, float *voxels,
        pillar_num,
        voxel_features,
        voxel_num,
-       voxel_idxs);
+       voxel_idxs,
+       max_voxels);
+  clampPillarCount_kernel<<<1, 1, 0, stream>>>(pillar_num, max_voxels);
   cudaError_t err = cudaGetLastError();
   return err;
 }
@@ -349,7 +366,8 @@ class VoxelizationImplement : public Voxelization {
                     params_input_,
                     voxel_features_,
                     voxel_num_,
-                    voxel_idxs_, _stream));
+                    voxel_idxs_,
+                    param_.max_voxels, _stream));
 
         checkRuntime(generateFeatures_launch(voxel_features_,
                     voxel_num_,
